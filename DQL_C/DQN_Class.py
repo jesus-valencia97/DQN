@@ -17,10 +17,10 @@ class DeepQLearning:
         self.epsilon=epsilon
         self.numberEpisodes=numberEpisodes
         self.stateDimension=1
-        self.actionDimension=7
+        self.actionDimension=9
         self.replayBufferSize=300
         self.batchReplayBufferSize=100
-        self.updateTargetNetworkPeriod=50
+        self.updateTargetNetworkPeriod=100
         self.counterUpdateTargetNetwork=0
         self.sumRewardsEpisode=[]
         self.replayBuffer=deque(maxlen=self.replayBufferSize)
@@ -44,7 +44,7 @@ class DeepQLearning:
         model.add(Dense(128,input_dim=self.stateDimension,activation='relu'))
         model.add(Dense(56,activation='relu'))
         model.add(Dense(self.actionDimension,activation='linear'))
-        model.compile(optimizer =  RMSprop(), loss = self.my_loss_fn)
+        model.compile(optimizer =  RMSprop(), loss = self.my_loss_fn, metrics = ['accuracy'])
         return model
 
     def trainingEpisodes(self):
@@ -54,20 +54,19 @@ class DeepQLearning:
             statesEpisode = []
      
             print("Simulating episode {}".format(indexEpisode))
-            currentState = np.array([np.random.uniform(0,1)])
-            # currentState = np.array([0.5])
+            currentState = np.array([np.random.uniform(0,50)])
             terminated = False
             self.fistTrain = 0
 
-            if indexEpisode>25:
-                self.epsilon=0.98*self.epsilon
+            if indexEpisode>200:
+                self.epsilon=0.997*self.epsilon
 
             while not terminated:
                 action = self.selectAction(currentState,indexEpisode)
                 (reward, nextState) = step(action, currentState)   
                 rewardsEpisode.append(reward)
                 statesEpisode.append(currentState)
-                if nextState<=0 or nextState == currentState or nextState>=1:
+                if nextState<=0 or nextState == currentState:
                     terminated = True
                 self.replayBuffer.append((currentState,action,reward,nextState,terminated))
                 self.trainNetwork()
@@ -96,8 +95,7 @@ class DeepQLearning:
         else:
             # print('Explotation...')
             Qvalues=self.mainNetwork.predict(state.reshape(1,self.stateDimension))
-            # return np.random.choice(np.where(Qvalues[0,:]==np.max(Qvalues[0,:]))[0])
-            return np.argmax(Qvalues)
+            return np.random.choice(np.where(Qvalues[0,:]==np.max(Qvalues[0,:]))[0])
   
     
     def trainNetwork(self):
