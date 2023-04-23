@@ -16,8 +16,8 @@ class DeepQLearning:
         self.gamma=gamma
         self.epsilon=epsilon
         self.numberEpisodes=numberEpisodes
-        self.stateDimension=1
-        self.actionDimension=7
+        self.stateDimension=4
+        self.actionDimension=len(actions)
         self.replayBufferSize=300
         self.batchReplayBufferSize=100
         self.updateTargetNetworkPeriod=50
@@ -52,9 +52,13 @@ class DeepQLearning:
         for indexEpisode in range(self.numberEpisodes):
             rewardsEpisode=[]
             statesEpisode = []
-     
             print("Simulating episode {}".format(indexEpisode))
-            currentState = np.array([np.random.uniform(0,1)])
+            
+            s0 = 0.5
+            r0 = rew(s0)
+            si = np.random.uniform(0,1)
+            ri = rew(si)
+            currentState = np.array([si,ri,s0,r0])
             # currentState = np.array([0.5])
             terminated = False
             self.fistTrain = 0
@@ -64,11 +68,9 @@ class DeepQLearning:
 
             while not terminated:
                 action = self.selectAction(currentState,indexEpisode)
-                (reward, nextState) = step(action, currentState)   
+                (reward, nextState, terminated) = step(action, currentState)   
                 rewardsEpisode.append(reward)
                 statesEpisode.append(currentState)
-                if nextState<=0 or nextState == currentState or nextState>=1:
-                    terminated = True
                 self.replayBuffer.append((currentState,action,reward,nextState,terminated))
                 self.trainNetwork()
                 currentState=nextState
@@ -95,7 +97,7 @@ class DeepQLearning:
         
         else:
             # print('Explotation...')
-            Qvalues=self.mainNetwork.predict(state.reshape(1,self.stateDimension))
+            Qvalues=self.mainNetwork.predict(state.reshape(1,self.stateDimension), verbose=0)
             # return np.random.choice(np.where(Qvalues[0,:]==np.max(Qvalues[0,:]))[0])
             return np.argmax(Qvalues)
   
@@ -110,15 +112,15 @@ class DeepQLearning:
                 print('\t Fist train of main network...')
 
             randomSampleBatch=random.sample(self.replayBuffer, self.batchReplayBufferSize)
-            currentStateBatch=np.zeros(shape=(self.batchReplayBufferSize,1))
-            nextStateBatch=np.zeros(shape=(self.batchReplayBufferSize,1))            
+            currentStateBatch=np.zeros(shape=(self.batchReplayBufferSize,self.stateDimension))
+            nextStateBatch=np.zeros(shape=(self.batchReplayBufferSize,self.stateDimension))            
 
             for index,tupleS in enumerate(randomSampleBatch):
                 currentStateBatch[index,:]=tupleS[0]
                 nextStateBatch[index,:]=tupleS[3]
 
-            QnextStateTargetNetwork=self.targetNetwork.predict(nextStateBatch)
-            QcurrentStateMainNetwork=self.mainNetwork.predict(currentStateBatch)
+            QnextStateTargetNetwork=self.targetNetwork.predict(nextStateBatch, verbose=0)
+            QcurrentStateMainNetwork=self.mainNetwork.predict(currentStateBatch, verbose = 0)
             inputNetwork=currentStateBatch
             outputNetwork=np.zeros(shape=(self.batchReplayBufferSize,self.actionDimension))
             self.actionsAppend=[]  
