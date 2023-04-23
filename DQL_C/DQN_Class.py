@@ -54,7 +54,8 @@ class DeepQLearning:
             statesEpisode = []
      
             print("Simulating episode {}".format(indexEpisode))
-            currentState = np.array([np.random.uniform(0,50)])
+            # currentState = np.array([np.random.uniform(0,50)])
+            currentState = np.array([1])
             terminated = False
             self.fistTrain = 0
 
