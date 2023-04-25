@@ -2,6 +2,8 @@
 import numpy as np
 import random
 from tensorflow.keras.layers import Dense
+from tensorflow.keras.layers import Input
+from tensorflow.keras.layers import Flatten
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.optimizers import RMSprop
 from collections import deque 
@@ -16,7 +18,7 @@ class DeepQLearning:
         self.gamma=gamma
         self.epsilon=epsilon
         self.numberEpisodes=numberEpisodes
-        self.stateDimension=4
+        self.stateDimension=(2,4)
         self.actionDimension=len(actions)
         self.replayBufferSize=300
         self.batchReplayBufferSize=100
@@ -41,7 +43,9 @@ class DeepQLearning:
 
     def createNetwork(self):
         model=Sequential()
-        model.add(Dense(128,input_dim=self.stateDimension,activation='relu'))
+        model.add(Input(shape=(2,4)))
+        model.add(Flatten())
+        model.add(Dense(128,activation='relu'))
         model.add(Dense(56,activation='relu'))
         model.add(Dense(self.actionDimension,activation='linear'))
         model.compile(optimizer =  RMSprop(), loss = self.my_loss_fn)
@@ -54,12 +58,10 @@ class DeepQLearning:
             statesEpisode = []
             print("Simulating episode {}".format(indexEpisode))
             
-            s0 = 0.5
-            r0 = rew(s0)
-            si = np.random.uniform(0,1)
-            ri = rew(si)
-            currentState = np.array([si,ri,s0,r0])
-            # currentState = np.array([0.5])
+            s0 = [np.random.uniform(0,1),0.45,0.55,0.5]
+            s0 = [round_closest(s) for s in s0]
+            r0 = [rew(s) for s in s0]
+            currentState = np.array([s0,r0])
             terminated = False
             self.fistTrain = 0
 
@@ -97,7 +99,7 @@ class DeepQLearning:
         
         else:
             # print('Explotation...')
-            Qvalues=self.mainNetwork.predict(state.reshape(1,self.stateDimension), verbose=0)
+            Qvalues=self.mainNetwork.predict(state.reshape(1,2,4), verbose=0)
             # return np.random.choice(np.where(Qvalues[0,:]==np.max(Qvalues[0,:]))[0])
             return np.argmax(Qvalues)
   
@@ -112,8 +114,8 @@ class DeepQLearning:
                 print('\t Fist train of main network...')
 
             randomSampleBatch=random.sample(self.replayBuffer, self.batchReplayBufferSize)
-            currentStateBatch=np.zeros(shape=(self.batchReplayBufferSize,self.stateDimension))
-            nextStateBatch=np.zeros(shape=(self.batchReplayBufferSize,self.stateDimension))            
+            currentStateBatch=np.zeros(shape=(self.batchReplayBufferSize,*self.stateDimension))
+            nextStateBatch=np.zeros(shape=(self.batchReplayBufferSize,*self.stateDimension))            
 
             for index,tupleS in enumerate(randomSampleBatch):
                 currentStateBatch[index,:]=tupleS[0]
