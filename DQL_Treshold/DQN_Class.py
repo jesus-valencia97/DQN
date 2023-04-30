@@ -18,7 +18,7 @@ class DeepQLearning:
         self.gamma=gamma
         self.epsilon=epsilon
         self.numberEpisodes=numberEpisodes
-        self.stateDimension=(2,4)
+        self.stateDimension=(2,2)
         self.actionDimension=len(actions)
         self.replayBufferSize=300
         self.batchReplayBufferSize=100
@@ -43,7 +43,7 @@ class DeepQLearning:
 
     def createNetwork(self):
         model=Sequential()
-        model.add(Input(shape=(2,4)))
+        model.add(Input(shape=self.stateDimension))
         model.add(Flatten())
         model.add(Dense(128,activation='relu'))
         model.add(Dense(56,activation='relu'))
@@ -58,7 +58,7 @@ class DeepQLearning:
             statesEpisode = []
             print("Simulating episode {}".format(indexEpisode))
             
-            s0 = [np.random.uniform(0,1),0.45,0.55,0.5]
+            s0 = [np.random.uniform(1,0),0.5]
             s0 = [round_closest(s) for s in s0]
             r0 = [rew(s) for s in s0]
             currentState = np.array([s0,r0])
@@ -72,7 +72,7 @@ class DeepQLearning:
                 action = self.selectAction(currentState,indexEpisode)
                 (reward, nextState, terminated) = step(action, currentState)   
                 rewardsEpisode.append(reward)
-                statesEpisode.append(currentState)
+                statesEpisode.append(currentState[1][0])
                 self.replayBuffer.append((currentState,action,reward,nextState,terminated))
                 self.trainNetwork()
                 currentState=nextState
@@ -99,7 +99,7 @@ class DeepQLearning:
         
         else:
             # print('Explotation...')
-            Qvalues=self.mainNetwork.predict(state.reshape(1,2,4), verbose=0)
+            Qvalues=self.mainNetwork.predict(state.reshape(1,*self.stateDimension), verbose=0)
             # return np.random.choice(np.where(Qvalues[0,:]==np.max(Qvalues[0,:]))[0])
             return np.argmax(Qvalues)
   
