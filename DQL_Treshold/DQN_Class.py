@@ -44,11 +44,11 @@ class DeepQLearning:
     def createNetwork(self):
         model=Sequential()
         model.add(Input(shape=self.stateDimension))
-        model.add(Flatten())
         model.add(Dense(128,activation='relu'))
         model.add(Dense(56,activation='relu'))
+        model.add(Flatten())
         model.add(Dense(self.actionDimension,activation='linear'))
-        model.compile(optimizer =  RMSprop(), loss = self.my_loss_fn)
+        model.compile(optimizer = 'adam', loss = self.my_loss_fn)
         return model
 
     def trainingEpisodes(self):
@@ -58,10 +58,11 @@ class DeepQLearning:
             statesEpisode = []
             print("Simulating episode {}".format(indexEpisode))
             
-            s0 = [np.random.uniform(1,0),0.5]
+            s0 = [np.random.uniform(1,0),np.random.uniform(1,0)]
             s0 = [round_closest(s) for s in s0]
             r0 = [rew(s) for s in s0]
             currentState = np.array([s0,r0])
+            # currentState = np.array([[s0[0],r0[0]],[s0[1],r0[1]]])
             terminated = False
             self.fistTrain = 0
 
@@ -72,12 +73,12 @@ class DeepQLearning:
                 action = self.selectAction(currentState,indexEpisode)
                 (reward, nextState, terminated) = step(action, currentState)   
                 rewardsEpisode.append(reward)
-                statesEpisode.append(currentState[1][0])
+                statesEpisode.append(currentState[0][0])
                 self.replayBuffer.append((currentState,action,reward,nextState,terminated))
                 self.trainNetwork()
                 currentState=nextState
            
-            print("\t Max of rewards {}".format(np.max(rewardsEpisode)))
+            print("\t Max of rewards {}".format(np.sum(rewardsEpisode)))
             print("\t Min state {}".format(np.min(statesEpisode)))             
             print("\t Max state {}".format(np.max(statesEpisode)))    
 
