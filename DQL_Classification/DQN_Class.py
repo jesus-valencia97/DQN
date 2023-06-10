@@ -1,7 +1,7 @@
 # import the necessary libraries
 import numpy as np
 import random
-from tensorflow.keras.layers import Dense
+from tensorflow.keras.layers import Dense, Dropout
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.optimizers import RMSprop
 from collections import deque 
@@ -10,15 +10,44 @@ from tensorflow.keras.losses import mean_squared_error
 from tensorflow.keras.optimizers import RMSprop
 
 import keras
+import keras.backend as K
+
+def recall_m(y_true, y_pred):
+    TP = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
+    Positives = K.sum(K.round(K.clip(y_true, 0, 1)))
+
+    recall = TP / (Positives+K.epsilon())
+    return recall
+
+
+def precision_m(y_true, y_pred):
+    TP = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
+    Pred_Positives = K.sum(K.round(K.clip(y_pred, 0, 1)))
+
+    precision = TP / (Pred_Positives+K.epsilon())
+    return precision
+
+
+def f1(y_true, y_pred):
+    
+    precision, recall = precision_m(y_true, y_pred), recall_m(y_true, y_pred)
+
+    return 2*((precision*recall)/(precision+recall+K.epsilon()))
+
 
 METRICS = [
-      keras.metrics.TruePositives(name='tp'),
-      keras.metrics.FalsePositives(name='fp'),
-      keras.metrics.TrueNegatives(name='tn'),
-      keras.metrics.FalseNegatives(name='fn'), 
-      keras.metrics.Precision(name='precision'),
-      keras.metrics.Recall(name='recall'),
+    #   keras.metrics.TruePositives(name='tp'),
+    #   keras.metrics.FalsePositives(name='fp'),
+    #   keras.metrics.TrueNegatives(name='tn'),
+    #   keras.metrics.FalseNegatives(name='fn'), 
+    #   keras.metrics.Precision(name='precision'),
+    #   keras.metrics.Recall(name='recall'),
+    recall_m,
+    precision_m,
+    f1
 ]
+
+
 
 
 
@@ -65,10 +94,12 @@ class DeepQLearning:
     def buildNetwork(self):
 
         model=Sequential()
-        model.add(Dense(128,input_dim=self.stateDimension,activation='relu'))
-        model.add(Dense(56,activation='relu'))
+        model.add(Dense(30,input_dim=self.stateDimension,activation='relu'))
+        model.add(Dense(64,input_dim=self.stateDimension,activation='tanh'))
+        model.add(Dropout(0.5))
+        model.add(Dense(20,activation='relu'))
         model.add(Dense(1,activation='sigmoid'))
-        model.compile(optimizer = "adam", loss = "binary_crossentropy", metrics=METRICS)
+        model.compile(optimizer = keras.optimizers.Adam(learning_rate=0.0005), loss = "binary_crossentropy", metrics=METRICS)
         return model
 
 
