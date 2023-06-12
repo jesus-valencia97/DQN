@@ -9,6 +9,8 @@ from tensorflow import gather_nd
 from tensorflow.keras.losses import mean_squared_error
 from tensorflow.keras.optimizers import RMSprop
 
+from sklearn.metrics import mean_squared_error as skmse
+
 import keras
 import keras.backend as K
 
@@ -79,16 +81,32 @@ class DeepQLearning:
         indices=np.zeros(shape=(s1,2))
         indices[:,0]=np.arange(s1)
         indices[:,1]=self.actionsAppend
+
+        print(indices)
+        tf.print(y_true,y_pred)
+        tf.print(gather_nd(y_true,indices=indices.astype(int)), gather_nd(y_pred,indices=indices.astype(int)))
+        print('-')
         loss = mean_squared_error(gather_nd(y_true,indices=indices.astype(int)), gather_nd(y_pred,indices=indices.astype(int)))
+        tf.print(loss)
         return loss    
 
+    def cust_mse(self, y_true, y_pred):
+
+        loss = mean_squared_error(y_true,y_pred) * self.actionDimension
+        
+        return loss
+        
+
     def createNetwork(self):
+        # DQN
         model=Sequential()
         model.add(Dense(30,input_dim=self.stateDimension,activation='relu'))
         model.add(Dense(64,input_dim=self.stateDimension,activation='tanh'))
+        # model.add(Dropout(0.1))
         model.add(Dense(20,activation='relu'))
         model.add(Dense(self.actionDimension,activation='linear'))
-        model.compile(optimizer =  keras.optimizers.Adam(learning_rate=0.0005), loss = self.my_loss_fn)
+        # model.compile(optimizer =  keras.optimizers.Adam(learning_rate=0.00025), loss = self.my_loss_fn)
+        model.compile(optimizer =  keras.optimizers.Adam(learning_rate=0.00025), loss = self.cust_mse)
         return model
 
     def buildNetwork(self):
@@ -96,7 +114,7 @@ class DeepQLearning:
         model=Sequential()
         model.add(Dense(30,input_dim=self.stateDimension,activation='relu'))
         model.add(Dense(64,input_dim=self.stateDimension,activation='tanh'))
-        model.add(Dropout(0.5))
+        # model.add(Dropout(0.1))
         model.add(Dense(20,activation='relu'))
         model.add(Dense(1,activation='sigmoid'))
         model.compile(optimizer = keras.optimizers.Adam(learning_rate=0.0005), loss = "binary_crossentropy", metrics=METRICS)
@@ -129,6 +147,7 @@ class DeepQLearning:
 
             while not terminated:
                 action = self.selectAction(currentState,indexEpisode)
+                # print(action)
                 (reward, nextState, terminated, i) = step(action, i, M_idx, m_idx, X_train_, y_train_)   
                 rewardsEpisode.append(reward)
                 statesEpisode.append(currentState)
@@ -168,37 +187,53 @@ class DeepQLearning:
 
 
         if (len(self.replayBuffer)>self.batchReplayBufferSize):
+
+            # print('\t train...')
             self.fistTrain += 1
             
             if self.fistTrain == 1:
-                print('\t Fist train of main network...')
+                print('\t First train of main network...')
 
             randomSampleBatch=random.sample(self.replayBuffer, self.batchReplayBufferSize)
-            currentStateBatch=np.zeros(shape=(self.batchReplayBufferSize,self.stateDimension))
-            nextStateBatch=np.zeros(shape=(self.batchReplayBufferSize,self.stateDimension))            
+            # currentStateBatch=np.zeros(shape=(self.batchReplayBufferSize,self.stateDimension))
+            # nextStateBatch=np.zeros(shape=(self.batchReplayBufferSize,self.stateDimension))            
 
-            for index,tupleS in enumerate(randomSampleBatch):
-                currentStateBatch[index,:]=tupleS[0]
-                nextStateBatch[index,:]=tupleS[3]
+            # for index,tupleS in enumerate(randomSampleBatch):
+            #     currentStateBatch[index,:]=tupleS[0]
+            #     nextStateBatch[index,:]=tupleS[3]
 
-            QnextStateTargetNetwork=self.targetNetwork.predict(nextStateBatch, verbose=0)
-            QcurrentStateMainNetwork=self.mainNetwork.predict(currentStateBatch, verbose = 0)
-            inputNetwork=currentStateBatch
-            outputNetwork=np.zeros(shape=(self.batchReplayBufferSize,self.actionDimension))
-            self.actionsAppend=[]  
+            # QnextStateTargetNetwork=self.targetNetwork.predict(nextStateBatch, verbose=0)
+            # QcurrentStateMainNetwork=self.mainNetwork.predict(currentStateBatch, verbose = 0)
+            # inputNetwork=currentStateBatch
+            # outputNetwork=np.zeros(shape=(self.batchReplayBufferSize,self.actionDimension))
+
+            # self.actionsAppend=[]  
 
             for index,(currentState,action,reward,nextState,terminated) in enumerate(randomSampleBatch):
                 
-                if terminated:
-                    y=reward                    
-                else:
-                    y=reward+self.gamma*np.max(QnextStateTargetNetwork[index])
+                y = self.mainNetwork.predict(currentState.reshape(1,self.stateDimension),verbose=0)
 
-                self.actionsAppend.append(action)
-                outputNetwork[index]=QcurrentStateMainNetwork[index]
-                outputNetwork[index,action]=y
-            
-            self.mainNetwork.fit(inputNetwork,outputNetwork,batch_size = self.batchReplayBufferSize, verbose=0,epochs=1)     
+                # print(y)
+
+                if terminated:
+                    y[0][action]=reward                    
+                else:
+                    y[0][action] = reward+self.gamma*np.max(self.targetNetwork.predict(nextState.reshape(1,self.stateDimension),verbose=0))
+
+                # y_pred = self.mainNetwork.predict(currentState.reshape(1,self.stateDimension),verbose=0)
+
+                # print(y_pred,y,action) 
+                # print(skmse([y_pred[0][action]],[y[0][action]]))
+
+                self.mainNetwork.fit(currentState.reshape(1,self.stateDimension),y,verbose=0)
+
+                # self.actionsAppend.append(action)
+                # outputNetwork[index]=QcurrentStateMainNetwork[index]
+                # outputNetwork[index,action]=y
+
+            # print(self.actionsAppend)
+            # print(inputNetwork.shape,outputNetwork.shape)
+            # self.mainNetwork.fit(inputNetwork,outputNetwork,batch_size = self.batchReplayBufferSize, verbose=1,epochs=1)     
             self.counterUpdateTargetNetwork+=1  
 
             if (self.counterUpdateTargetNetwork>(self.updateTargetNetworkPeriod-1)):
