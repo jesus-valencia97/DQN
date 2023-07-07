@@ -68,7 +68,7 @@ class DeepQLearning:
         self.numberEpisodes=numberEpisodes
         self.stateDimension=X_train.shape[1]
         self.actionDimension=len(actions)
-        self.replayBufferSize=200
+        self.replayBufferSize=120
         self.batchReplayBufferSize=30
         self.updateTargetNetworkPeriod=30
         self.counterUpdateTargetNetwork=0
@@ -119,10 +119,8 @@ class DeepQLearning:
     def createNetwork(self):
         # DQN
         model=Sequential()
-        model.add(Dense(30,input_dim=self.stateDimension,activation='relu'))
-        model.add(Dense(64,input_dim=self.stateDimension,activation='tanh'))
-        # model.add(Dropout(0.1))
-        model.add(Dense(20,activation='relu'))
+        model.add(Dense(500,input_dim=self.stateDimension,activation='relu'))
+        model.add(Dense(500,input_dim=self.stateDimension,activation='relu'))
         model.add(Dense(self.actionDimension,activation='linear'))
         # model.compile(optimizer =  keras.optimizers.Adam(learning_rate=0.00025), loss = self.my_loss_fn)
         opt = Adam(lr=0.00025)
@@ -132,7 +130,7 @@ class DeepQLearning:
     def buildNetwork(self):
 
         model=Sequential()
-        model.add(Dense(30,input_dim=self.stateDimension,activation='relu'))
+        model.add(Dense(500,input_dim=self.stateDimension,activation='relu'))
         model.add(Dense(64,input_dim=self.stateDimension,activation='tanh'))
         # model.add(Dropout(0.1))
         model.add(Dense(20,activation='relu'))
