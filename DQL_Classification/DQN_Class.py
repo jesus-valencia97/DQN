@@ -3,11 +3,13 @@ import numpy as np
 import random
 from tensorflow.keras.layers import Dense, Dropout
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.optimizers import RMSprop
+from tensorflow.keras.optimizers import RMSprop, Adam
 from collections import deque 
 from tensorflow import gather_nd
-from tensorflow.keras.losses import mean_squared_error
+from tensorflow.keras.losses import mean_squared_error, BinaryCrossentropy
 from tensorflow.keras.optimizers import RMSprop
+
+from keras.callbacks import CSVLogger
 
 from sklearn.metrics import mean_squared_error as skmse
 
@@ -52,7 +54,10 @@ METRICS = [
 
 
 
-
+def printt(expr):
+    with open("train_log.txt","a") as f:
+        print(expr, file = f)
+#         printt(expr)
 
 class DeepQLearning:
     
@@ -64,8 +69,8 @@ class DeepQLearning:
         self.stateDimension=X_train.shape[1]
         self.actionDimension=len(actions)
         self.replayBufferSize=200
-        self.batchReplayBufferSize=1
-        self.updateTargetNetworkPeriod=20
+        self.batchReplayBufferSize=30
+        self.updateTargetNetworkPeriod=30
         self.counterUpdateTargetNetwork=0
         self.sumRewardsEpisode=[]
         self.replayBuffer=deque(maxlen=self.replayBufferSize)
@@ -82,20 +87,34 @@ class DeepQLearning:
         indices[:,0]=np.arange(s1)
         indices[:,1]=self.actionsAppend
 
-        print(indices)
-        tf.print(y_true,y_pred)
-        tf.print(gather_nd(y_true,indices=indices.astype(int)), gather_nd(y_pred,indices=indices.astype(int)))
-        print('-')
+        printt(indices)
+        tf.printt(y_true,y_pred)
+        tf.printt(gather_nd(y_true,indices=indices.astype(int)), gather_nd(y_pred,indices=indices.astype(int)))
+        printt('-')
         loss = mean_squared_error(gather_nd(y_true,indices=indices.astype(int)), gather_nd(y_pred,indices=indices.astype(int)))
-        tf.print(loss)
+        tf.printt(loss)
         return loss    
 
     def cust_mse(self, y_true, y_pred):
 
         loss = mean_squared_error(y_true,y_pred) * self.actionDimension
+
+        # tf.printt(loss)
         
         return loss
         
+    def cust_binary(self, y_true, y_pred):
+        
+        bce = BinaryCrossentropy()
+        loss = mean_squared_error(y_true,y_pred)
+        printt(loss.shape)
+        tf.printt(loss)
+        
+        # printt(loss)
+
+
+        return loss
+
 
     def createNetwork(self):
         # DQN
@@ -106,7 +125,8 @@ class DeepQLearning:
         model.add(Dense(20,activation='relu'))
         model.add(Dense(self.actionDimension,activation='linear'))
         # model.compile(optimizer =  keras.optimizers.Adam(learning_rate=0.00025), loss = self.my_loss_fn)
-        model.compile(optimizer =  keras.optimizers.Adam(learning_rate=0.00025), loss = self.cust_mse)
+        opt = Adam(lr=0.00025)
+        model.compile(optimizer = opt, loss = self.cust_mse)
         return model
 
     def buildNetwork(self):
@@ -117,7 +137,7 @@ class DeepQLearning:
         # model.add(Dropout(0.1))
         model.add(Dense(20,activation='relu'))
         model.add(Dense(1,activation='sigmoid'))
-        model.compile(optimizer = keras.optimizers.Adam(learning_rate=0.0005), loss = "binary_crossentropy", metrics=METRICS)
+        model.compile(optimizer = "adam", loss = self.cust_binary, metrics=METRICS)
         return model
 
 
@@ -134,7 +154,7 @@ class DeepQLearning:
 
             rewardsEpisode=[]
             statesEpisode = []
-            print("Simulating episode {}".format(indexEpisode))
+            printt("Simulating episode {}".format(indexEpisode))
             
             i=0
             currentState = X_train_[i,:]
@@ -147,18 +167,19 @@ class DeepQLearning:
 
             while not terminated:
                 action = self.selectAction(currentState,indexEpisode)
-                # print(action)
+                # printt(action)
                 (reward, nextState, terminated, i) = step(action, i, M_idx, m_idx, X_train_, y_train_)   
                 rewardsEpisode.append(reward)
                 statesEpisode.append(currentState)
                 self.replayBuffer.append((currentState,action,reward,nextState,terminated))
-                # print(len(self.replayBuffer))
+                # printt(len(self.replayBuffer))
                 self.trainNetwork()
                 currentState=nextState
 
-            print(f'\t First 1 index: {m_idx[:10]}')
-            print(f'\t Reached sample: {i}')
-            print("\t Sum of rewards {}".format(np.sum(rewardsEpisode)))
+            printt(f'\t First 1 index: {m_idx[:10]}')
+            printt(f'\t Reached sample: {i}')
+            printt(f'\t Reward distribution: {np.unique(rewardsEpisode, return_counts = True)}')
+            printt("\t Sum of rewards {}".format(np.sum(rewardsEpisode)))
 
     def selectAction(self,state,index):
         import numpy as np
@@ -172,12 +193,12 @@ class DeepQLearning:
         #     self.epsilon=0.99*self.epsilon
         
         if randomNumber < self.epsilon:
-            # print('random')
-            # print(self.epsilon)
+            # printt('random')
+            # printt(self.epsilon)
             return np.random.choice(self.actionDimension)           
         
         else:
-            # print('Explotation...')
+            # printt('Explotation...')
             Qvalues=self.mainNetwork.predict(state.reshape(1,self.stateDimension), verbose=0)
             # return np.random.choice(np.where(Qvalues[0,:]==np.max(Qvalues[0,:]))[0])
             return np.argmax(Qvalues)
@@ -188,56 +209,43 @@ class DeepQLearning:
 
         if (len(self.replayBuffer)>self.batchReplayBufferSize):
 
-            # print('\t train...')
+            # printt('\t train...')
             self.fistTrain += 1
             
             if self.fistTrain == 1:
-                print('\t First train of main network...')
+                printt('\t First train of main network...')
 
             randomSampleBatch=random.sample(self.replayBuffer, self.batchReplayBufferSize)
-            # currentStateBatch=np.zeros(shape=(self.batchReplayBufferSize,self.stateDimension))
-            # nextStateBatch=np.zeros(shape=(self.batchReplayBufferSize,self.stateDimension))            
+            currentStateBatch=np.zeros(shape=(self.batchReplayBufferSize,self.stateDimension))
+            nextStateBatch=np.zeros(shape=(self.batchReplayBufferSize,self.stateDimension))            
 
-            # for index,tupleS in enumerate(randomSampleBatch):
-            #     currentStateBatch[index,:]=tupleS[0]
-            #     nextStateBatch[index,:]=tupleS[3]
+            for index,tupleS in enumerate(randomSampleBatch):
+                currentStateBatch[index,:]=tupleS[0]
+                nextStateBatch[index,:]=tupleS[3]
 
-            # QnextStateTargetNetwork=self.targetNetwork.predict(nextStateBatch, verbose=0)
-            # QcurrentStateMainNetwork=self.mainNetwork.predict(currentStateBatch, verbose = 0)
-            # inputNetwork=currentStateBatch
-            # outputNetwork=np.zeros(shape=(self.batchReplayBufferSize,self.actionDimension))
+            QnextStateTargetNetwork=self.targetNetwork.predict(nextStateBatch, verbose=0)
+            QcurrentStateMainNetwork=self.mainNetwork.predict(currentStateBatch, verbose = 0)
 
-            # self.actionsAppend=[]  
+            inputNetwork=currentStateBatch
+            outputNetwork=np.zeros(shape=(self.batchReplayBufferSize,self.actionDimension))
 
             for index,(currentState,action,reward,nextState,terminated) in enumerate(randomSampleBatch):
                 
-                y = self.mainNetwork.predict(currentState.reshape(1,self.stateDimension),verbose=0)
-
-                # print(y)
-
                 if terminated:
-                    y[0][action]=reward                    
+                    y=reward                    
                 else:
-                    y[0][action] = reward+self.gamma*np.max(self.targetNetwork.predict(nextState.reshape(1,self.stateDimension),verbose=0))
+                    y=reward+self.gamma*np.max(QnextStateTargetNetwork[index])
 
-                # y_pred = self.mainNetwork.predict(currentState.reshape(1,self.stateDimension),verbose=0)
+                outputNetwork[index]=QcurrentStateMainNetwork[index]
+                outputNetwork[index,action]=y
 
-                # print(y_pred,y,action) 
-                # print(skmse([y_pred[0][action]],[y[0][action]]))
 
-                self.mainNetwork.fit(currentState.reshape(1,self.stateDimension),y,verbose=0)
-
-                # self.actionsAppend.append(action)
-                # outputNetwork[index]=QcurrentStateMainNetwork[index]
-                # outputNetwork[index,action]=y
-
-            # print(self.actionsAppend)
-            # print(inputNetwork.shape,outputNetwork.shape)
-            # self.mainNetwork.fit(inputNetwork,outputNetwork,batch_size = self.batchReplayBufferSize, verbose=1,epochs=1)     
+            csv_logger = CSVLogger('train_log.txt', append=True, separator='\t')
+            self.mainNetwork.fit(inputNetwork,outputNetwork,batch_size = self.batchReplayBufferSize, verbose=0,epochs=20, callbacks=[csv_logger])     
             self.counterUpdateTargetNetwork+=1  
 
             if (self.counterUpdateTargetNetwork>(self.updateTargetNetworkPeriod-1)):
                 self.targetNetwork.set_weights(self.mainNetwork.get_weights())        
-                print("\t\t [UPDATED] Target network")
-                print(f"\t\t Current epsilon: {self.epsilon}")
+                printt("\t\t [UPDATED] Target network")
+                printt(f"\t\t Current epsilon: {self.epsilon}")
                 self.counterUpdateTargetNetwork=0
