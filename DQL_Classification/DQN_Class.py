@@ -9,6 +9,8 @@ from tensorflow import gather_nd
 from tensorflow.keras.losses import mean_squared_error, BinaryCrossentropy
 from tensorflow.keras.optimizers import RMSprop
 
+from tensorflow.keras.callbacks import Callback
+
 from keras.callbacks import CSVLogger
 
 from sklearn.metrics import mean_squared_error as skmse
@@ -52,6 +54,16 @@ METRICS = [
 ]
 
 
+class LossHistory(Callback):
+    def on_train_begin(self, logs={}):
+        self.losses = []
+    def on_batch_end(self, batch, logs={}):
+        self.losses.append(logs.get('loss'))
+        
+    def on_train_end(self, logs=None):
+        printt(f'\t\t Start: {self.losses[0]} \t End: {self.losses[-1]}')
+       
+            
 
 
 def printt(expr):
@@ -238,8 +250,10 @@ class DeepQLearning:
                 outputNetwork[index,action]=y
 
 
-            csv_logger = CSVLogger('train_log.txt', append=True, separator='\t')
-            self.mainNetwork.fit(inputNetwork,outputNetwork,batch_size = self.batchReplayBufferSize, verbose=0,epochs=20, callbacks=[csv_logger])     
+            # csv_logger = CSVLogger('train_log.txt', append=True, separator='\t')
+            loss_logger = LossHistory()
+
+            self.mainNetwork.fit(inputNetwork,outputNetwork,batch_size = self.batchReplayBufferSize, verbose=0,epochs=20, callbacks=[loss_logger])     
             self.counterUpdateTargetNetwork+=1  
 
             if (self.counterUpdateTargetNetwork>(self.updateTargetNetworkPeriod-1)):
